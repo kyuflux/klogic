@@ -18,7 +18,7 @@ import akka.stream.ActorMaterializer
 
 class Application extends Controller {
   implicit val system = Akka.system
-  val client = Client()
+  val client = Client(host="10.0.0.99")
   val wsUrl = current.configuration.getString("kcontroller.url").getOrElse("none")
   implicit val materializer = ActorMaterializer()
   val inSrc = Source.actorRef[Enqueue](999,dropHead)
