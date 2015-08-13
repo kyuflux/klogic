@@ -7,7 +7,8 @@ import akka.actor._
 import play.api.libs.concurrent.Akka
 import play.api.Play.current
 import scala.util.{ Success, Failure }
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent._
+import ExecutionContext.Implicits.global
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Source, Flow, Sink}
 import akka.stream.OverflowStrategy.dropHead
@@ -18,7 +19,6 @@ import Queue._
 class Queue(redisHost:String, klHost:String){
 implicit val system = Akka.system
 	val client = Client(host=redisHost)
-	val wsUrl = klHost 
 	implicit val materializer = ActorMaterializer()
 	val inSrc = Source.actorRef[Enqueue](999,dropHead)
 	import Queue.CustomerWriter._
@@ -27,14 +27,16 @@ implicit val system = Akka.system
 	val in = Flow[Enqueue].to(inEnd).runWith(inSrc)
 	val outSrc = Source.actorRef[Dequeue](999,dropHead)
 	import Queue.CustomerReader._
-	val outEnd = Sink.foreach[Dequeue]{ dq =>
-			client.lPop[String](s"${dq.org}:${dq.branch}:${dq.queue}") onComplete {
-				case Success(Some(cm)) => WS.url(s"$wsUrl/${dq.org}/${dq.branch}").post(cm)
-					case Success(None) => ()
-						case Failure(e) => ()
+	val lpop = Flow[Dequeue].mapAsync(10){ dq =>
+			Future{
+				client.lPop[String](s"${dq.org}:${dq.branch}:${dq.queue}") map { cm =>
+					Some((s"$klHost/${dq.org}/${dq.branch}",cm))  
+				}
 			}
 		}
-	val out = Flow[Dequeue].to(outEnd).runWith(outSrc)
+	val filter = Flow[Some[(String,Customer)]].filter( o => !o.isEmpty   )
+	val outEnd = Sink.foreach[Some[(String,Customer)]](o => WS.url(o._1).post(o._2))
+	val out = lpop.join(filter).to(outEnd).runWith(outSrc)
 
 }
 

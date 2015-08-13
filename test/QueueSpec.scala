@@ -1,27 +1,27 @@
 import org.specs2.mutable._
 import org.specs2.runner._
 import org.junit.runner._
-
 import play.api.test._
 import play.api.mvc._
 import play.api.test.Helpers._
 import play.api.libs.json._
 import scala.concurrent.ExecutionContext.Implicits.global
+import controllers.streams._
 /**
  * Add your spec here.
  * You can mock out a whole application including requests, plugins etc.
  * For more information, consult the wiki.
  */
 @RunWith(classOf[JUnitRunner])
-class ApplicationSpec extends Specification {
+class QueueSpec extends Specification {
 
-  "Application" should {
+  "Queue" should {
 
-    "send 404 on a bad request" in new WithApplication{
-      route(FakeRequest(GET, "/boum")) must beSome.which (status(_) == NOT_FOUND)
+    "Enqueue and dequeue customer" in new WithApplication{
+    val q = Queue("10.0.0.99","") 
+	q.in ! Queue.Customer("Javier","Salcedo","17547608")
+
+	"11" must haveSize(2) 
     }
-
-    "enqueue a customr and call them later" in new WithApplication{
-         }
   }
 }
