@@ -19,7 +19,7 @@ resolvers += "Sonatype OSS Releases" at "https://oss.sonatype.org/content/reposi
 libraryDependencies += "com.livestream" %% "scredis" % "2.0.6"
 libraryDependencies += "com.typesafe.akka" % "akka-stream-experimental_2.11" % "1.0"
 libraryDependencies += "com.typesafe.akka" % "akka-stream-testkit-experimental_2.11" % "1.0"
-
+libraryDependencies += "commons-codec" % "commons-codec" % "1.10"
 // Play provides two styles of routers, one expects its actions to be injected, the
 // other, legacy style, accesses its actions statically.
 routesGenerator := InjectedRoutesGenerator
