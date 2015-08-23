@@ -10,14 +10,14 @@ import scala.util.{ Success, Failure }
 import scala.concurrent._
 import ExecutionContext.Implicits.global
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Source, Flow, Sink, FlowGraph}
+import akka.stream.scaladsl.{Broadcast,Source, Flow, Sink, FlowGraph}
 import akka.stream.OverflowStrategy.dropHead
 import libs.ws.WS
 import Queue._
 import tools.TextToSpeech
 
 class Queue(redisHost:String, klHost:String){
-implicit val system = Akka.system
+	implicit val system = Akka.system
 	val client = Client(host=redisHost)
 	implicit val materializer = ActorMaterializer()
 	val inSrc = Source.actorRef[Enqueue](999,dropHead)
@@ -25,16 +25,19 @@ implicit val system = Akka.system
 	val inEnd = Sink.foreachParallel[Enqueue](10){em => 
 		val channel = s"${em.org}:${em.branch}:${em.queue}"
 	client.rPush[Customer](channel,em.data) }
-	/*val tts = Flow[Enqueue].mapAsync(10)(toTts)
+	implicit val klurl = klHost
+	val tts = Flow[Enqueue].mapAsync(10)(toTts)
 	val pipe = Flow(){ implicit b =>
-  		import FlowGraphImplicits._
-		val bcast = Broadcast[Enqueue]
-		val back = Sink.foreachParallel[(String,JsValue)](10) 
+  		import FlowGraph.Implicits._
+		val bcast = b.add(Broadcast[Enqueue](2))
+		val back = Sink.foreachParallel[(String,JsValue)](10)
+			{o => WS.url(o._1).post(o._2)} 
 		bcast ~> tts ~> back
+		(bcast.in, bcast.out(1))
 		
-	}	*/
-	val in = Flow[Enqueue].to(inEnd).runWith(inSrc)
-	
+	}	
+	//val in = Flow[Enqueue].to(inEnd).runWith(inSrc)
+	val in = pipe.runWith(inSrc,inEnd)._1
 	import Queue.CustomerReader._
 	val pop = Flow[Dequeue].mapAsync(10){ dq =>
 			client.lPop[Customer](s"${dq.org}:${dq.branch}:${dq.queue}") map { cm =>
@@ -65,10 +68,11 @@ object Queue{
   			Json.parse(new String(cus)).as[Customer]
 		}
 	}
-	def toTts(eq:Enqueue):Future[JsValue] = { 
-		val name = eq.data.name.trim+"_"+eq.data.lname
+	def toTts(eq:Enqueue)(implicit klurl:String):Future[(String,JsValue)] = { 
+		val url = s"$klurl/${eq.org}/${eq.branch}" 
+		val name = eq.data.name.trim+"_"+eq.data.lname.trim
 		TextToSpeech("es").audioToBase64(eq.data.name+" "+eq.data.lname).
-		map{ s => Json.toJson(Map("name"->name,"audio"->s))}
+		map{ s => (url,Json.toJson(Map("name"->name,"audio"->s)))}
 	}
 	
 	case class Customer(name:String, lname:String, doc:String, audio:Option[String] = None)
