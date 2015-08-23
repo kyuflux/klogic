@@ -14,6 +14,7 @@ import akka.stream.scaladsl.{Source, Flow, Sink, FlowGraph}
 import akka.stream.OverflowStrategy.dropHead
 import libs.ws.WS
 import Queue._
+import tools.TextToSpeech
 
 class Queue(redisHost:String, klHost:String){
 implicit val system = Akka.system
@@ -21,8 +22,17 @@ implicit val system = Akka.system
 	implicit val materializer = ActorMaterializer()
 	val inSrc = Source.actorRef[Enqueue](999,dropHead)
 	import Queue.CustomerWriter._
-	val inEnd = Sink.foreach[Enqueue](em => client.rPush[Customer](em.channel,em.data) )
-	
+	val inEnd = Sink.foreachParallel[Enqueue](10){em => 
+		val channel = s"${em.org}:${em.branch}:${em.queue}"
+	client.rPush[Customer](channel,em.data) }
+	/*val tts = Flow[Enqueue].mapAsync(10)(toTts)
+	val pipe = Flow(){ implicit b =>
+  		import FlowGraphImplicits._
+		val bcast = Broadcast[Enqueue]
+		val back = Sink.foreachParallel[(String,JsValue)](10) 
+		bcast ~> tts ~> back
+		
+	}	*/
 	val in = Flow[Enqueue].to(inEnd).runWith(inSrc)
 	
 	import Queue.CustomerReader._
@@ -55,7 +65,18 @@ object Queue{
   			Json.parse(new String(cus)).as[Customer]
 		}
 	}
+	def toTts(eq:Enqueue):Future[JsValue] = { 
+		val name = eq.data.name.trim+"_"+eq.data.lname
+		TextToSpeech("es").audioToBase64(eq.data.name+" "+eq.data.lname).
+		map{ s => Json.toJson(Map("name"->name,"audio"->s))}
+	}
+	
 	case class Customer(name:String, lname:String, doc:String, audio:Option[String] = None)
-	case class Enqueue(channel:String, data:Customer)
+	case class Enqueue(org:String, branch:String, queue:String, data:Customer)
 	case class Dequeue(org:String, branch:String, queue:String)
 }
+
+//tts
+//eq =>TextToSpeech("es").audioToBase64(eq.data.name+" "+eq.data.lname).
+//	map{ s => eq.copy(data=eq.data.copy(audio=Some(s)))}
+	

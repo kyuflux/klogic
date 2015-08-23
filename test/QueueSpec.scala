@@ -39,15 +39,15 @@ class QueueSpec extends Specification {
     "Enqueue and dequeue customer from google:california:oldies queue" in new WithApplication{
 	 val q = Queue("10.0.0.99","") 
 	val javier = Customer("Javier","Salcedo","17547608")
-	q.in ! Enqueue("google:california:oldies",javier)
-	Thread.sleep(300)
+	q.in ! Enqueue("google","california","oldies",javier)
+	Thread.sleep(800)
 	implicit val system = q.system
 	import q.materializer	
 	val probe = TestProbe()
 	val source:Source[Some[(String, Customer)],Unit] = Source.single[Dequeue](
 		Dequeue("google","california","oldies")).via(q.pop)
 	source.runWith(Sink.head).pipeTo(probe.ref)
-	probe.expectMsg(400.millis, Some(("/google/california",javier)))
+	probe.expectMsg(800.millis, Some(("/google/california",javier)))
  }
   }
 }

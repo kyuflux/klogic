@@ -18,9 +18,8 @@ class Application extends Controller {
   }
  
   def enqueue(org:String, branch:String, queue:String) = Action { implicit request =>
-	val channel = s"$org:$branch:$queue"
 	request.body.asJson match {
-		case Some(obj) => { qs.in ! Queue.Enqueue(channel,obj.as[Queue.Customer])
+		case Some(obj) => { qs.in ! Queue.Enqueue(org,branch,queue,obj.as[Queue.Customer])
 					Results.Accepted }
 		case None => Results.NotAcceptable
 	}
