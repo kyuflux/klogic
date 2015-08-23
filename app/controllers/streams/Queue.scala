@@ -36,7 +36,6 @@ class Queue(redisHost:String, klHost:String){
 		(bcast.in, bcast.out(1))
 		
 	}	
-	//val in = Flow[Enqueue].to(inEnd).runWith(inSrc)
 	val in = pipe.runWith(inSrc,inEnd)._1
 	import Queue.CustomerReader._
 	val pop = Flow[Dequeue].mapAsync(10){ dq =>
@@ -48,7 +47,7 @@ class Queue(redisHost:String, klHost:String){
 			Source.actorRef[Dequeue](999,dropHead).via(pop)
 
 	val outEnd = Sink.foreach[Some[(String,Customer)]](
-		o => WS.url(o.get._1).post(Json.toJson(o.get._2)))
+		o => WS.url(o.get._1).post(Json.toJson(Message("call",Json.toJson(o.get._2)))))
 
 	val out = outEnd.runWith(sourceOut)
 
@@ -58,6 +57,7 @@ import scredis.serialization._
 object Queue{
 	def apply(redisHost:String, klHost:String):Queue = new Queue(redisHost,klHost)
 	implicit val cusFmt:Format[Customer] = Json.format[Customer]
+	implicit val msgFmt:Format[Message] = Json.format[Message]
 	implicit object CustomerWriter extends Writer[Customer]{
 	override def writeImpl(c:Customer):Array[Byte] = {
 	   	Json.stringify(Json.toJson(c)).getBytes
@@ -72,15 +72,13 @@ object Queue{
 		val url = s"$klurl/${eq.org}/${eq.branch}" 
 		val name = eq.data.name.trim+"_"+eq.data.lname.trim
 		TextToSpeech("es").audioToBase64(eq.data.name+" "+eq.data.lname).
-		map{ s => (url,Json.toJson(Map("name"->name,"audio"->s)))}
+		map{ s => (url,Json.toJson(Message("audio",
+			Json.toJson(Map("name"->name,"audio"->s)))))}
 	}
-	
+	case class Message(msgType:String, data:JsValue)	
 	case class Customer(name:String, lname:String, doc:String, audio:Option[String] = None)
 	case class Enqueue(org:String, branch:String, queue:String, data:Customer)
 	case class Dequeue(org:String, branch:String, queue:String)
 }
 
-//tts
-//eq =>TextToSpeech("es").audioToBase64(eq.data.name+" "+eq.data.lname).
-//	map{ s => eq.copy(data=eq.data.copy(audio=Some(s)))}
 	

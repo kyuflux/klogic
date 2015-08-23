@@ -23,7 +23,7 @@ class TextToSpeechSpec extends Specification {
 
     "convert a stream in audio base65 string" in new WithApplication{
 	val resultFuture:Future[String] = TextToSpeech("es").audioToBase64("hola")
-	val result:String = Await.result(resultFuture, 1000.millis)
+	val result:String = Await.result(resultFuture, 1200.millis)
 	(result.length() > 0) must beTrue 
 
      }
